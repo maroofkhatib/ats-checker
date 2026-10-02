@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATS Resume Checker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>ATS Resume Checker</h1>
+  <p>Upload your resume and a job description to see how well they match.</p>
+</header>
+
+<main>
+  <form id="form" class="card">
+    <div class="grid">
+      <section>
+        <h2>1. Resume</h2>
+        <label id="drop" class="drop" for="resume">
+          <input type="file" id="resume" accept=".pdf,.docx,.txt" hidden>
+          <strong id="fileName">Drop your resume here or click to browse</strong>
+          <span>PDF or DOCX, up to 8 MB</span>
+        </label>
+      </section>
+      <section>
+        <h2>2. Job description</h2>
+        <textarea id="jd" placeholder="Paste the full job description here…"></textarea>
+        <div class="alt">or <label class="link" for="jdFile">upload as file</label> <span id="jdFileName"></span>
+          <input type="file" id="jdFile" accept=".pdf,.docx,.txt" hidden></div>
+      </section>
+    </div>
+    <button id="go" type="submit">Analyze match</button>
+    <p id="error" class="error" role="alert" hidden></p>
+  </form>
+
+  <div id="results" hidden>
+    <section class="card hero">
+      <div class="ring" id="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" id="arc"/></svg><div><b id="scoreNum">0</b><small>/ 100</small></div></div>
+      <div>
+        <h2 id="grade"></h2>
+        <p id="summary" class="muted"></p>
+        <div id="bars" class="bars"></div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card"><h3>Matched skills <span class="count" id="mCount"></span></h3><div id="matched" class="chips"></div></section>
+      <section class="card"><h3>Missing skills <span class="count" id="xCount"></span></h3><div id="missing" class="chips"></div></section>
+    </div>
+    <div class="grid">
+      <section class="card"><h3>Experience &amp; education</h3><ul id="facts" class="plain"></ul></section>
+      <section class="card"><h3>ATS format checks</h3><ul id="checks" class="plain"></ul></section>
+    </div>
+    <section class="card"><h3>How to improve</h3><ul id="tips" class="tips"></ul></section>
+  </div>
+</main>
+<footer>Scores are heuristic estimates; real ATS systems vary. Files are processed in memory and not stored.</footer>
+<script src="app.js"></script>
+</body>
+</html>
