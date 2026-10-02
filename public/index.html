@@ -8,6 +8,7 @@
 </head>
 <body>
 <header class="top">
+  <div class="userbar"><span id="userEmail"></span><button id="logout" type="button" class="ghost">Sign out</button><button id="delete" type="button" class="ghost danger">Delete account</button></div>
   <h1>ATS Resume Checker</h1>
   <p>Upload your resume and a job description to see how well they match.</p>
 </header>
@@ -56,6 +57,18 @@
   </div>
 </main>
 <footer>Scores are heuristic estimates; real ATS systems vary. Files are processed in memory and not stored.</footer>
+<dialog id="delDialog">
+  <form id="delForm" method="dialog">
+    <h3>Delete your account?</h3>
+    <p class="muted">This permanently removes your account. Enter your password to confirm.</p>
+    <input id="delPassword" type="password" autocomplete="current-password" placeholder="Password" required>
+    <p id="delError" class="error" role="alert" hidden></p>
+    <div class="actions">
+      <button type="button" id="delCancel" class="ghost">Cancel</button>
+      <button type="submit" id="delConfirm" class="ghost danger solid">Delete permanently</button>
+    </div>
+  </form>
+</dialog>
 <script src="app.js"></script>
 </body>
 </html>

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in – ATS Resume Checker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="auth">
+  <h1>ATS Resume Checker</h1>
+  <p class="sub">Sign in to check your resume against a job description.</p>
+  <form id="form" class="card" novalidate>
+    <div class="tabs">
+      <button type="button" id="tabIn" class="on">Sign in</button>
+      <button type="button" id="tabUp">Create account</button>
+    </div>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" required>
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password" minlength="8" required>
+    <button id="go" type="submit">Sign in</button>
+    <p id="error" class="error" role="alert" hidden></p>
+  </form>
+</main>
+<script src="login.js"></script>
+</body>
+</html>

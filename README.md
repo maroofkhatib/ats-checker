@@ -1,3 +1,13 @@
+---
+title: ATS Resume Checker
+emoji: 📄
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # ATS Resume Checker
 
 Upload a resume (PDF or DOCX) and paste a job description to get an ATS match score based on skills, experience, education and resume formatting.
@@ -28,10 +38,31 @@ Open http://localhost:3000. Set `PORT` to use a different port.
 
 ```bash
 docker build -t ats-checker .
-docker run -p 3000:3000 ats-checker
+docker run -p 7860:7860 ats-checker
 ```
 
-Open http://localhost:3000.
+Open http://localhost:7860.
+
+## Deploy free on Hugging Face Spaces
+
+The YAML block at the top of this file and the `Dockerfile` (port 7860) are what Spaces needs.
+
+1. Create a Space at https://huggingface.co/new-space — choose **Docker** as the SDK and **Blank** template.
+2. Push this repo to it:
+   ```bash
+   git remote add space https://huggingface.co/spaces/<your-username>/ats-checker
+   git push space main
+   ```
+   (Use a Hugging Face access token with write permission as the password.)
+3. Spaces builds the image and serves the app at `https://<your-username>-ats-checker.hf.space`.
+
+## Accounts & login
+
+Users sign up / sign in on `/login.html`; the checker and `/api/analyze` require a session. Auth uses only Node built-ins (no extra packages): scrypt-hashed passwords, HMAC-signed HttpOnly cookies (7 days), and per-IP rate limiting on login/signup.
+
+- Users are stored in `data/users.json` (git-ignored). Set `DATA_DIR` to change the location.
+- Set `SESSION_SECRET` in production so sessions survive restarts; otherwise one is generated in `data/session-secret`.
+- On hosts without persistent disk (Render free, Hugging Face Spaces) accounts are lost on redeploy/restart.
 
 ## Notes
 

@@ -99,6 +99,7 @@ $('form').addEventListener('submit', async (e) => {
   btn.disabled = true; btn.textContent = 'Analyzing…';
   try {
     const res = await fetch('/api/analyze', { method: 'POST', body: fd });
+    if (res.status === 401) { location.href = '/login.html'; return; }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
     render(data);
@@ -106,5 +107,27 @@ $('form').addEventListener('submit', async (e) => {
     err.textContent = ex.message; err.hidden = false;
   } finally {
     btn.disabled = false; btn.textContent = 'Analyze match';
+  }
+});
+
+fetch('/api/me').then((r) => (r.ok ? r.json() : Promise.reject())).then((u) => ($('userEmail').textContent = u.email)).catch(() => (location.href = '/login.html'));
+$('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); location.href = '/login.html'; });
+
+const dlg = $('delDialog');
+$('delete').addEventListener('click', () => { $('delPassword').value = ''; $('delError').hidden = true; dlg.showModal(); $('delPassword').focus(); });
+$('delCancel').addEventListener('click', () => dlg.close());
+$('delForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('delConfirm'), err = $('delError');
+  btn.disabled = true; err.hidden = true;
+  try {
+    const res = await fetch('/api/account', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('delPassword').value }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not delete account.');
+    location.href = '/login.html';
+  } catch (ex) {
+    err.textContent = ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false;
   }
 });

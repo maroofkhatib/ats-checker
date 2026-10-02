@@ -47,3 +47,22 @@ button:disabled{opacity:.6;cursor:wait}
 .tips .high{border-color:var(--bad)}.tips .medium{border-color:var(--mid)}.tips .low{border-color:var(--accent)}
 .empty{color:var(--muted);font-size:.9rem}
 footer{text-align:center;color:var(--muted);font-size:.8rem;padding:16px 16px 32px}
+.top{position:relative}
+.userbar{position:absolute;top:12px;right:16px;display:flex;gap:10px;align-items:center;font-size:.85rem;color:var(--muted)}
+button.ghost{margin:0;width:auto;padding:6px 12px;background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500;font-size:.85rem}
+.auth{max-width:400px;margin:8vh auto 0;padding:0 16px}
+.auth h1{text-align:center;margin:0 0 4px}.auth .sub{text-align:center;color:var(--muted);margin:0 0 20px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--bg);padding:4px;border-radius:10px;margin-bottom:16px}
+.tabs button{margin:0;background:transparent;color:var(--muted);padding:8px}
+.tabs button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.auth label{display:block;font-size:.85rem;margin:12px 0 4px}
+.auth input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;font:inherit}
+.auth input:focus{outline:2px solid var(--accent);border-color:transparent}
+@media(max-width:720px){.userbar{position:static;justify-content:center;margin-bottom:12px}}
+button.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 50%,transparent)}
+button.danger.solid{background:var(--bad);color:#fff;border-color:var(--bad)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--text);padding:22px;width:min(380px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog h3{margin:0 0 6px}dialog .muted{margin:0 0 14px;font-size:.9rem}
+dialog input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;font:inherit}
+dialog .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
