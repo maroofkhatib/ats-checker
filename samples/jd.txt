@@ -1,0 +1,11 @@
+Senior Full Stack Engineer
+
+Requirements
+- 5+ years of experience in software development
+- Strong skills in React, TypeScript and Node.js
+- Experience with AWS, Kubernetes and Docker
+- Experience designing REST APIs and microservices
+- Bachelor's degree in Computer Science
+
+Nice to have
+- GraphQL, Terraform

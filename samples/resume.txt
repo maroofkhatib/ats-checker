@@ -1,0 +1,21 @@
+Jane Doe
+jane.doe@email.com | +1 415 555 0134
+
+Summary
+Full-stack software engineer with 6 years of experience building web apps.
+
+Skills
+JavaScript, TypeScript, React, Node.js, Express, PostgreSQL, Docker, AWS, Git, REST APIs, Jest
+
+Experience
+Senior Software Engineer, Acme Corp                Jan 2021 - Present
+- Built and optimized React dashboards used by 20,000 users, improving load time by 40%
+- Designed REST APIs in Node.js and Express backed by PostgreSQL
+- Led a team of 4 engineers and implemented CI/CD pipelines on AWS
+
+Software Engineer, Beta Inc                         Jun 2018 - Dec 2020
+- Developed microservices, automated deployments with Docker, reduced costs by 25%
+- Created unit tests with Jest, increased coverage to 90%
+
+Education
+B.S. Computer Science, State University, 2018
