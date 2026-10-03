@@ -66,3 +66,5 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 dialog h3{margin:0 0 6px}dialog .muted{margin:0 0 14px;font-size:.9rem}
 dialog input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:transparent;color:inherit;font:inherit}
 dialog .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.forgot{text-align:center;margin:14px 0 0;font-size:.88rem}.forgot a{color:var(--accent)}
+.notice{color:var(--good);margin:12px 0 0}.auth h2{margin:0 0 6px}.auth .muted{font-size:.9rem;margin:0 0 6px}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Reset password – ATS Resume Checker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="auth">
+  <h1>ATS Resume Checker</h1>
+  <p class="sub">Choose a new password.</p>
+  <form id="form" class="card" novalidate>
+    <label for="password">New password</label>
+    <input id="password" type="password" autocomplete="new-password" minlength="8" required>
+    <label for="confirm">Confirm new password</label>
+    <input id="confirm" type="password" autocomplete="new-password" minlength="8" required>
+    <button id="go" type="submit">Update password</button>
+    <p id="error" class="error" role="alert" hidden></p>
+    <p id="ok" class="notice" role="status" hidden>Password updated. <a href="/login.html">Sign in</a></p>
+  </form>
+</main>
+<script src="reset.js"></script>
+</body>
+</html>

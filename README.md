@@ -58,11 +58,31 @@ The YAML block at the top of this file and the `Dockerfile` (port 7860) are what
 
 ## Accounts & login
 
-Users sign up / sign in on `/login.html`; the checker and `/api/analyze` require a session. Auth uses only Node built-ins (no extra packages): scrypt-hashed passwords, HMAC-signed HttpOnly cookies (7 days), and per-IP rate limiting on login/signup.
+Users sign up / sign in on `/login.html`; the checker and `/api/analyze` require a session. Everything uses only Node built-ins (no extra packages).
 
-- Users are stored in `data/users.json` (git-ignored). Set `DATA_DIR` to change the location.
-- Set `SESSION_SECRET` in production so sessions survive restarts; otherwise one is generated in `data/session-secret`.
-- On hosts without persistent disk (Render free, Hugging Face Spaces) accounts are lost on redeploy/restart.
+- **Passwords:** salted scrypt hashes, never stored in plain text.
+- **User file:** `data/users.json` is AES-256-GCM encrypted (file mode 0600). The key comes from `DATA_KEY`, or is generated in `data/data.key`. Back up the key — without it the accounts can't be read. The folder is git-ignored.
+- **Sessions:** signed HttpOnly cookie, valid 7 days, so users stay logged in. Set `SESSION_SECRET` so sessions survive restarts.
+- **Delete account:** button in the header; requires the password.
+- **Forgot password:** "Forgot password?" on the login page emails a one-hour, single-use reset link (only its hash is stored). The response is identical whether or not the email exists. Resetting signs out all existing sessions.
+- Login/signup/reset requests are rate-limited per IP.
+
+### Sending reset emails
+
+Set these environment variables (example for Gmail with an [app password](https://myaccount.google.com/apppasswords)):
+
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-app-password
+MAIL_FROM="ATS Checker <you@gmail.com>"
+APP_URL=https://your-site.example.com   # base URL used in the reset link
+```
+
+Port 465 uses TLS; other ports use STARTTLS. If `SMTP_HOST` is not set, no email is sent and the reset link is printed to the server console instead (handy for local development). Set `APP_URL` in production so links don't depend on the request's Host header.
+
+On hosts without persistent disk (Render free, Hugging Face Spaces) accounts are lost on redeploy/restart.
 
 ## Notes
 

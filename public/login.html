@@ -21,6 +21,18 @@
     <input id="password" type="password" autocomplete="current-password" minlength="8" required>
     <button id="go" type="submit">Sign in</button>
     <p id="error" class="error" role="alert" hidden></p>
+    <p class="forgot" id="forgotWrap"><a href="#" id="forgot">Forgot password?</a></p>
+  </form>
+
+  <form id="forgotForm" class="card" novalidate hidden>
+    <h2>Reset your password</h2>
+    <p class="muted">Enter your account email and we'll send you a reset link.</p>
+    <label for="fEmail">Email</label>
+    <input id="fEmail" type="email" autocomplete="email" required>
+    <button id="fGo" type="submit">Send reset link</button>
+    <p id="fMsg" class="notice" role="status" hidden></p>
+    <p id="fErr" class="error" role="alert" hidden></p>
+    <p class="forgot"><a href="#" id="back">Back to sign in</a></p>
   </form>
 </main>
 <script src="login.js"></script>

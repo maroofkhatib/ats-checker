@@ -7,6 +7,7 @@ function setMode(m) {
   $('tabUp').classList.toggle('on', m === 'signup');
   $('go').textContent = m === 'login' ? 'Sign in' : 'Create account';
   $('password').autocomplete = m === 'login' ? 'current-password' : 'new-password';
+  $('forgotWrap').hidden = m === 'signup';
   $('error').hidden = true;
 }
 $('tabIn').onclick = () => setMode('login');
@@ -26,6 +27,29 @@ $('form').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Something went wrong.');
     location.href = '/';
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// --- Forgot password ---
+const show = (forgot) => { $('form').hidden = forgot; $('forgotForm').hidden = !forgot; if (forgot) $('fEmail').value = $('email').value; };
+$('forgot').onclick = (e) => { e.preventDefault(); show(true); };
+$('back').onclick = (e) => { e.preventDefault(); show(false); };
+$('forgotForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = $('fMsg'), err = $('fErr'), btn = $('fGo');
+  msg.hidden = err.hidden = true;
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: $('fEmail').value }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+    msg.textContent = data.message;
+    msg.hidden = false;
   } catch (ex) {
     err.textContent = ex.message;
     err.hidden = false;
