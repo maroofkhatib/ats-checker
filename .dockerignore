@@ -5,3 +5,7 @@ Dockerfile
 .dockerignore
 .git
 data
+
+.env
+.env.*
+tests

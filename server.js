@@ -1,4 +1,7 @@
+require('./lib/env');
+const crypto = require('crypto');
 const express = require('express');
+const helmet = require('helmet');
 const multer = require('multer');
 const path = require('path');
 const pdfParse = require('pdf-parse');
@@ -6,6 +9,11 @@ const mammoth = require('mammoth');
 const { analyze } = require('./lib/analyzer');
 const auth = require('./lib/auth');
 const mailer = require('./lib/mailer');
+const llm = require('./lib/llm');
+const schemas = require('./lib/schemas');
+const { buildDocx } = require('./lib/cv');
+const { cleanPdfText } = require('./lib/text');
+const { validate } = schemas;
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -13,7 +21,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 async function extractText(file) {
   const name = file.originalname.toLowerCase();
   if (name.endsWith('.pdf') || file.mimetype === 'application/pdf') {
-    return (await pdfParse(file.buffer)).text;
+    return cleanPdfText((await pdfParse(file.buffer)).text);
   }
   if (name.endsWith('.docx')) {
     return (await mammoth.extractRawText({ buffer: file.buffer })).value;
@@ -26,15 +34,20 @@ async function extractText(file) {
 }
 
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(helmet({
+  referrerPolicy: { policy: 'no-referrer' },
+  // Pages only use same-origin scripts/styles. Don't force https on plain-http local development.
+  contentSecurityPolicy: { directives: { ...helmet.contentSecurityPolicy.getDefaultDirectives(), 'upgrade-insecure-requests': process.env.NODE_ENV === 'production' ? [] : null } },
+  strictTransportSecurity: process.env.NODE_ENV === 'production',
+}));
+app.use(['/api/rescore', '/api/export-docx'], express.json({ limit: '400kb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(auth.attachUser);
 
 // --- Auth API ---
-const cleanEmail = (e) => String(e || '').trim().toLowerCase();
-app.post('/api/signup', auth.rateLimit(), async (req, res) => {
-  const email = cleanEmail(req.body.email), password = req.body.password;
-  if (!auth.validEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
-  if (!auth.validPassword(password)) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+app.post('/api/signup', auth.rateLimit(), validate(schemas.signup), async (req, res) => {
+  const { email, password } = req.data;
   try {
     await auth.createUser(email, password);
     auth.setSession(req, res, email);
@@ -43,18 +56,15 @@ app.post('/api/signup', auth.rateLimit(), async (req, res) => {
     res.status(e.status || 500).json({ error: e.message });
   }
 });
-app.post('/api/login', auth.rateLimit(), async (req, res) => {
-  const email = cleanEmail(req.body.email), password = req.body.password;
-  if (!auth.validEmail(email) || typeof password !== 'string' || !(await auth.verifyUser(email, password))) {
-    return res.status(401).json({ error: 'Incorrect email or password.' });
-  }
+app.post('/api/login', auth.rateLimit(), validate(schemas.login, 'Incorrect email or password.'), async (req, res) => {
+  const { email, password } = req.data;
+  if (!(await auth.verifyUser(email, password))) return res.status(401).json({ error: 'Incorrect email or password.' });
   auth.setSession(req, res, email);
   res.json({ email });
 });
 app.post('/api/logout', (_req, res) => { auth.clearSession(res); res.json({ ok: true }); });
-app.post('/api/forgot', auth.rateLimit(5), (req, res) => {
-  const email = cleanEmail(req.body.email);
-  if (!auth.validEmail(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+app.post('/api/forgot', auth.rateLimit(5), validate(schemas.forgot), (req, res) => {
+  const { email } = req.data;
   // Same response whether or not the account exists, sent before any work, so it can't be used to probe emails.
   res.json({ message: 'If an account exists for that email, a password reset link has been sent.' });
   const token = auth.createResetToken(email);
@@ -76,21 +86,16 @@ ${link}
 If this wasn't you, ignore this email and your password will stay the same.`,
   }).catch((e) => console.error('Failed to send reset email:', e.message));
 });
-app.post('/api/reset', auth.rateLimit(10), async (req, res) => {
-  const { token, password } = req.body;
-  if (!auth.validPassword(password)) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+app.post('/api/reset', auth.rateLimit(10), validate(schemas.reset), async (req, res) => {
   try {
-    await auth.resetPassword(token, password);
+    await auth.resetPassword(req.data.token, req.data.password);
     res.json({ ok: true });
   } catch (e) {
     res.status(e.status || 500).json({ error: e.message });
   }
 });
-app.delete('/api/account', auth.requireAuth, auth.rateLimit(), async (req, res) => {
-  const password = req.body && req.body.password;
-  if (typeof password !== 'string' || !(await auth.verifyUser(req.user, password))) {
-    return res.status(403).json({ error: 'Incorrect password.' });
-  }
+app.delete('/api/account', auth.requireAuth, auth.rateLimit(), validate(schemas.deleteAccount, 'Incorrect password.'), async (req, res) => {
+  if (!(await auth.verifyUser(req.user, req.data.password))) return res.status(403).json({ error: 'Incorrect password.' });
   auth.deleteUser(req.user);
   auth.clearSession(res);
   res.json({ ok: true });
@@ -101,8 +106,59 @@ app.get('/api/me', auth.requireAuth, (req, res) => res.json({ email: req.user })
 app.get(['/', '/index.html'], (req, res, next) => (req.user ? next() : res.redirect('/login.html')));
 app.get('/app.js', (req, res, next) => (req.user ? next() : res.status(401).end()));
 app.get('/login.html', (req, res, next) => (req.user ? res.redirect('/') : next()));
-app.use((_req, res, next) => { res.setHeader('Referrer-Policy', 'no-referrer'); next(); });
 app.use(express.static(path.join(__dirname, 'public')));
+
+const AI_DAILY_LIMIT = +process.env.AI_DAILY_LIMIT || 40;
+const aiUse = new Map(); // email -> { day, n }  (in memory: resets on restart)
+function takeAiQuota(email) {
+  const day = new Date().toISOString().slice(0, 10);
+  const rec = aiUse.get(email);
+  if (!rec || rec.day !== day) { aiUse.set(email, { day, n: 1 }); return true; }
+  return ++rec.n <= AI_DAILY_LIMIT;
+}
+
+// Remembered AI judgements, so re-scoring after edits gives the same credit for the same evidence and never
+// depends on the daily limit or a flaky API call. A credit is reused only while its quoted evidence is still in the resume.
+const aiCache = new Map(); // "user|jdHash|skill" -> { confidence, evidence }
+const jdKey = (jd) => crypto.createHash('sha256').update(jd).digest('hex').slice(0, 16);
+function rememberCredits(user, jd, credits) {
+  for (const [skill, c] of credits) aiCache.set(`${user}|${jdKey(jd)}|${skill}`, c);
+  while (aiCache.size > 5000) aiCache.delete(aiCache.keys().next().value);
+}
+function recalledCredits(user, jd, resume, names) {
+  const out = new Map();
+  for (const n of names) {
+    const c = aiCache.get(`${user}|${jdKey(jd)}|${n}`);
+    if (c && llm.evidenceInResume(c.evidence, resume)) out.set(n, c);
+  }
+  return out;
+}
+
+// Keyword + graph scoring, then the optional AI pass over still-unmatched skills.
+async function runAnalysis(resume, jd, user) {
+  let result = analyze(resume, jd);
+  const unmatched = result.skills.missing.map((m) => m.name);
+  const aiInfo = { enabled: llm.enabled(), status: 'off' };
+  if (aiInfo.enabled && unmatched.length) {
+    const credits = recalledCredits(user, jd, resume, unmatched);
+    const toAsk = unmatched.filter((n) => !credits.has(n));
+    aiInfo.status = 'ok';
+    if (toAsk.length) {
+      if (!takeAiQuota(user)) aiInfo.status = 'limit';
+      else {
+        const ai = await llm.inferSkills(resume, toAsk);
+        if (!ai) aiInfo.status = 'error';
+        else { aiInfo.model = ai.model; rememberCredits(user, jd, ai.credits); for (const [k, v] of ai.credits) credits.set(k, v); }
+      }
+    }
+    if (credits.size) result = analyze(resume, jd, { aiCredits: credits });
+  }
+  result.ai = aiInfo;
+  // Returned so the page can offer an editable copy of the resume and re-score it without re-uploading.
+  result.resumeText = resume;
+  result.jdText = jd;
+  return result;
+}
 
 app.post('/api/analyze', auth.requireAuth, upload.fields([{ name: 'resume', maxCount: 1 }, { name: 'jdFile', maxCount: 1 }]), async (req, res) => {
   try {
@@ -117,15 +173,41 @@ app.post('/api/analyze', auth.requireAuth, upload.fields([{ name: 'resume', maxC
     if (resume.length < 100) {
       return res.status(422).json({ error: 'Could not read enough text from the resume. It may be a scanned image — ATS systems cannot read those either. Use a text-based PDF or DOCX.' });
     }
-    res.json(analyze(resume, jd));
+    res.json(await runAnalysis(resume, jd, req.user));
   } catch (e) {
     console.error(e);
     res.status(422).json({ error: e.message || 'Failed to analyze files.' });
   }
 });
 
+app.post('/api/rescore', auth.requireAuth, auth.rateLimit(40), validate(schemas.rescore), async (req, res) => {
+  try {
+    res.json(await runAnalysis(req.data.resume.trim(), req.data.jd.trim(), req.user));
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not score the updated resume.' });
+  }
+});
+app.post('/api/export-docx', auth.requireAuth, auth.rateLimit(40), validate(schemas.exportDocx), async (req, res) => {
+  try {
+    const buf = await buildDocx(req.data.text, req.data.template);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': 'attachment; filename="updated-resume.docx"',
+    });
+    res.send(buf);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not create the document.' });
+  }
+});
+
 app.use((err, _req, res, _next) => {
-  res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 500).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 8 MB).' : err.message });
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'File too large (max 8 MB).' });
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid request.' });
+  if (err.status && err.status < 500) return res.status(err.status).json({ error: 'Invalid request.' });
+  console.error(err);
+  res.status(500).json({ error: 'Something went wrong.' });
 });
 
 const PORT = process.env.PORT || 3000;

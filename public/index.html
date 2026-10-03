@@ -41,6 +41,7 @@
       <div>
         <h2 id="grade"></h2>
         <p id="summary" class="muted"></p>
+        <p id="aiNote" class="warn" role="status" hidden></p>
         <div id="bars" class="bars"></div>
       </div>
     </section>
@@ -54,6 +55,24 @@
       <section class="card"><h3>ATS format checks</h3><ul id="checks" class="plain"></ul></section>
     </div>
     <section class="card"><h3>How to improve</h3><ul id="tips" class="tips"></ul></section>
+
+    <section class="card" id="editor">
+      <h3>Add missing skills to your CV</h3>
+      <p class="muted">Tick only the skills you genuinely have. Claiming skills you don't have can cost you the interview &mdash; or the job.</p>
+      <label class="pick all" id="pickAllRow"><input type="checkbox" id="pickAll"><span><strong>Select all</strong> <span class="muted-inline">(only if you really have them)</span></span></label>
+      <div id="picks" class="picks"></div>
+      <div class="actions">
+        <button id="rescore" type="button">Add selected skills &amp; re-score</button>
+        <select id="template" aria-label="Resume style">
+          <option value="modern">Modern style</option>
+          <option value="classic">Classic style</option>
+          <option value="minimal">Minimal style</option>
+        </select>
+        <button id="download" type="button" class="ghost">Download updated CV (DOCX)</button>
+      </div>
+      <p id="delta" class="notice" role="status" hidden></p>
+      <p id="edError" class="error" role="alert" hidden></p>
+    </section>
   </div>
 </main>
 <footer>Scores are heuristic estimates; real ATS systems vary. Files are processed in memory and not stored.</footer>
@@ -69,6 +88,7 @@
     </div>
   </form>
 </dialog>
+<script src="cvedit.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

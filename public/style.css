@@ -68,3 +68,15 @@ dialog input{width:100%;padding:11px 12px;border:1px solid var(--line);border-ra
 dialog .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 .forgot{text-align:center;margin:14px 0 0;font-size:.88rem}.forgot a{color:var(--accent)}
 .notice{color:var(--good);margin:12px 0 0}.auth h2{margin:0 0 6px}.auth .muted{font-size:.9rem;margin:0 0 6px}
+.chip.inf{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px 14px;margin:0 0 12px}
+.pick{display:flex;gap:8px;align-items:center;font-size:.92rem;cursor:pointer}
+.pick input{width:auto;margin:0}
+#addSkills{margin:0 0 16px}
+.lbl{display:block;font-size:.85rem;margin:6px 0 4px}
+.cvtext{height:340px;font:13px/1.5 ui-monospace,Consolas,monospace}
+#editor .actions{display:flex;gap:10px}#editor .actions button{margin-top:12px;flex:1}
+#editor select{margin-top:12px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:.9rem}
+.warn{color:var(--mid);font-size:.88rem;margin:0 0 12px}
+.pick.all{margin:0 0 8px}.muted-inline{color:var(--muted);font-size:.82rem}
+#addMsg{margin:-6px 0 14px;font-size:.9rem}

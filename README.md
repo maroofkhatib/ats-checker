@@ -56,20 +56,27 @@ The YAML block at the top of this file and the `Dockerfile` (port 7860) are what
    (Use a Hugging Face access token with write permission as the password.)
 3. Spaces builds the image and serves the app at `https://<your-username>-ats-checker.hf.space`.
 
+## Add missing skills to your CV
+
+After a check, the "Add missing skills to your CV" card lists the skills the job wants that your resume lacks. Tick only the ones you genuinely have (or use **Select all**), then click **Add selected skills & re-score**: they are added to your resume's Skills section (or a new one) and the new score is shown next to the original. **Download updated CV (DOCX)** exports the same updated resume. Nothing is added unless the user ticks it. There is no editable text box; the resume text is kept in memory on the page. `npm test` covers the insertion logic and the export.
+### Resume export
+
+**Download as DOCX** rebuilds the resume as a polished, single-column, ATS-friendly Word document in one of three styles (Modern, Classic, Minimal). The text is first parsed into name, contact line, summary, jobs/education with right-aligned dates, bullets, and labelled skills, then rendered with real Word styling. The original PDF/Word file's own layout is not preserved. Parsing is heuristic, so unusual layouts may be arranged differently.
+
 ## Accounts & login
 
-Users sign up / sign in on `/login.html`; the checker and `/api/analyze` require a session. Everything uses only Node built-ins (no extra packages).
+Users sign up / sign in on `/login.html`; the checker and `/api/analyze` require a session.
 
-- **Passwords:** salted scrypt hashes, never stored in plain text.
-- **User file:** `data/users.json` is AES-256-GCM encrypted (file mode 0600). The key comes from `DATA_KEY`, or is generated in `data/data.key`. Back up the key — without it the accounts can't be read. The folder is git-ignored.
-- **Sessions:** signed HttpOnly cookie, valid 7 days, so users stay logged in. Set `SESSION_SECRET` so sessions survive restarts.
+- **Storage:** accounts live in a SQLite database (`data/app.db`, via better-sqlite3). Passwords are salted scrypt hashes, never plain text. An older `data/users.json` is imported automatically on first start and kept as `users.json.migrated`.
+- **Sessions:** signed HttpOnly cookie valid for 7 days, so users stay logged in. Set `SESSION_SECRET` so sessions survive restarts.
 - **Delete account:** button in the header; requires the password.
-- **Forgot password:** "Forgot password?" on the login page emails a one-hour, single-use reset link (only its hash is stored). The response is identical whether or not the email exists. Resetting signs out all existing sessions.
-- Login/signup/reset requests are rate-limited per IP.
+- **Forgot password:** emails a one-hour, single-use reset link (only its hash is stored). The response is identical whether or not the email exists. Resetting signs out all existing sessions.
+- **Validation and headers:** request bodies are validated with zod; helmet sets security headers (CSP, nosniff, HSTS in production). Login/signup/reset are rate-limited per IP.
+- Set `NODE_ENV=production` when serving over HTTPS (enables HSTS and `upgrade-insecure-requests`).
 
-### Sending reset emails
+### Sending reset emails (nodemailer)
 
-Set these environment variables (example for Gmail with an [app password](https://myaccount.google.com/apppasswords)):
+Example for Gmail with an [app password](https://myaccount.google.com/apppasswords):
 
 ```bash
 SMTP_HOST=smtp.gmail.com
@@ -82,7 +89,23 @@ APP_URL=https://your-site.example.com   # base URL used in the reset link
 
 Port 465 uses TLS; other ports use STARTTLS. If `SMTP_HOST` is not set, no email is sent and the reset link is printed to the server console instead (handy for local development). Set `APP_URL` in production so links don't depend on the request's Host header.
 
+### Persisting accounts
+
+The database lives in `data/`. With Docker, mount a volume or accounts are lost when the container is removed:
+
+```bash
+docker run -d -p 7860:7860 -v ats-data:/app/data ats-checker
+```
+
 On hosts without persistent disk (Render free, Hugging Face Spaces) accounts are lost on redeploy/restart.
+
+## AI skill inference (optional)
+
+Skills are matched by keywords, then by a skill graph that infers implied skills (e.g. LSTM and autoencoders imply Deep Learning). If `ANTHROPIC_API_KEY` is set (put it in a git-ignored `.env`), Claude Haiku 4.5 is also asked about job skills that are still unmatched, and must quote evidence from the resume. If the API is unavailable the app falls back to the graph.
+
+- `AI_DAILY_LIMIT` (default 20) caps AI-assisted checks per user per day; `LLM_MODEL` changes the model; `LLM_ENABLED=false` turns it off.
+- Resume text is sent to the Anthropic API when this is enabled. Say so in your privacy notice.
+- `npm run eval` scores keyword-only vs graph vs AI on the labelled cases in `tests/cases.js` (the AI row makes real API calls).
 
 ## Notes
 
@@ -97,6 +120,16 @@ On hosts without persistent disk (Render free, Hugging Face Spaces) accounts are
 server.js        Express server, file upload and text extraction
 lib/analyzer.js  Scoring engine
 lib/skills.js    Skill dictionary
+lib/implications.js  Skill graph: which skills imply others
+lib/skillgraph.js    Inference over that graph
+lib/llm.js       Optional Claude skill inference
+lib/auth.js      Sessions, passwords, reset tokens
+lib/db.js        SQLite schema + legacy import
+lib/mailer.js    nodemailer wrapper
+lib/schemas.js   zod request validation
+lib/cv.js        DOCX export
+public/cvedit.js Inserts skills into the resume text (also unit-tested in Node)
+tests/           Labelled evaluation cases and runner
 public/          Front end (HTML, CSS, JS)
 samples/         Example resume and job description
 ```

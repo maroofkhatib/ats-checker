@@ -40,11 +40,58 @@ function li(el, rows) {
   }
 }
 
-function render(r) {
+let cv = { jd: '', text: '', firstScore: null, lastScore: null, lastText: '' };
+
+function updateAddButton() {
+  const all = document.querySelectorAll('#picks input');
+  const n = document.querySelectorAll('#picks input:checked').length;
+  $('rescore').textContent = n ? `Add ${n} selected skill${n === 1 ? '' : 's'} & re-score` : 'Add selected skills & re-score';
+  $('pickAll').checked = all.length > 0 && n === all.length;
+}
+
+function renderPicks(missing) {
+  const box = $('picks');
+  box.innerHTML = '';
+  const empty = !missing.length;
+  $('pickAllRow').hidden = empty;
+  $('rescore').hidden = empty;
+  if (empty) { box.innerHTML = '<span class="empty">No missing skills detected &mdash; nothing to add.</span>'; return; }
+  const ordered = [...missing].sort((a, b) => b.required - a.required);
+  ordered.forEach((m, i) => {
+    const id = 'pick' + i;
+    const row = document.createElement('label');
+    row.className = 'pick';
+    row.htmlFor = id;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.id = id; cb.value = m.name;
+    const span = document.createElement('span');
+    span.textContent = 'I have used ' + m.name + (m.required ? '' : ' (preferred)');
+    cb.addEventListener('change', updateAddButton);
+    row.append(cb, span);
+    box.appendChild(row);
+  });
+  updateAddButton();
+}
+
+function render(r, { rescored = false } = {}) {
   $('results').hidden = false;
+  if (!rescored) {
+    cv = { jd: r.jdText, text: r.resumeText, firstScore: r.score, lastScore: r.score, lastText: r.resumeText };
+    $('delta').hidden = true;
+    $('edError').hidden = true;
+  }
+  renderPicks(r.skills.missing);
   $('scoreNum').textContent = r.score;
   $('grade').textContent = r.grade;
-  $('summary').textContent = `${r.skills.matched.length} of ${r.skills.matched.length + r.skills.missing.length} detected job skills found in your resume.`;
+  const note = $('aiNote');
+  const msgs = {
+    limit: "You've reached today's AI limit, so skills that still needed a fresh AI check were scored by keyword and skill-graph matching only. AI credit already earned for your resume is kept.",
+    error: 'AI skill matching was temporarily unavailable, so skills that still needed a fresh AI check were scored by keyword and skill-graph matching only. Try again in a moment. AI credit already earned for your resume is kept.',
+  };
+  note.textContent = msgs[r.ai && r.ai.status] || '';
+  note.hidden = !note.textContent;
+  const inferred = r.skills.matched.filter((s) => s.inferred).length;
+  $('summary').textContent = `${r.skills.matched.length} of ${r.skills.matched.length + r.skills.missing.length} detected job skills found in your resume` + (inferred ? ` (${inferred} inferred from related skills).` : '.');
   const arc = $('arc');
   arc.style.stroke = colorFor(r.score);
   requestAnimationFrame(() => (arc.style.strokeDashoffset = 326.7 * (1 - r.score / 100)));
@@ -62,7 +109,7 @@ function render(r) {
 
   $('mCount').textContent = r.skills.matched.length;
   $('xCount').textContent = r.skills.missing.length;
-  chips($('matched'), r.skills.matched, 'ok', (s) => s.name);
+  chips($('matched'), r.skills.matched, (s) => (s.inferred ? 'inf' : 'ok'), (s) => (s.inferred ? `${s.name} ← ${s.source === 'ai' ? 'AI: ' : 'inferred from '}${s.via.slice(0, 3).join(', ')}` : s.name));
   chips($('missing'), r.skills.missing, (s) => (s.required ? 'no' : 'soft'), (s) => s.name + (s.required ? '' : ' (preferred)'));
 
   const e = r.experience, ed = r.education;
@@ -83,7 +130,7 @@ function render(r) {
     l.textContent = t.text;
     tips.appendChild(l);
   }
-  $('results').scrollIntoView({ behavior: 'smooth' });
+  if (!rescored) $('results').scrollIntoView({ behavior: 'smooth' });
 }
 
 $('form').addEventListener('submit', async (e) => {
@@ -127,6 +174,74 @@ $('delForm').addEventListener('submit', async (e) => {
     location.href = '/login.html';
   } catch (ex) {
     err.textContent = ex.message; err.hidden = false;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// --- Add missing skills to the CV (the CV text is kept in memory; there is no editable text box) ---
+const edError = (msg) => { $('edError').textContent = msg || ''; $('edError').hidden = !msg; };
+const showNote = (msg) => { $('delta').textContent = msg; $('delta').hidden = !msg; };
+
+$('pickAll').addEventListener('change', (e) => {
+  document.querySelectorAll('#picks input').forEach((c) => (c.checked = e.target.checked));
+  updateAddButton();
+});
+
+// Adds every ticked skill to the CV text, then clears the ticks. Returns the skills that were ticked.
+function applyTicked() {
+  const chosen = [...document.querySelectorAll('#picks input:checked')].map((c) => c.value);
+  if (chosen.length) {
+    cv.text = CvEdit.addSkills(cv.text, chosen);
+    document.querySelectorAll('#picks input:checked').forEach((c) => (c.checked = false));
+    updateAddButton();
+  }
+  return chosen;
+}
+
+$('rescore').addEventListener('click', async () => {
+  edError('');
+  const added = applyTicked();
+  if (!added.length && cv.text === cv.lastText) {
+    return edError('Tick the missing skills you have (or use "Select all") first, then click this button.');
+  }
+  const btn = $('rescore');
+  btn.disabled = true; btn.textContent = 'Scoring…';
+  try {
+    const res = await fetch('/api/rescore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ resume: cv.text, jd: cv.jd }) });
+    if (res.status === 401) { location.href = '/login.html'; return; }
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not score the updated CV.');
+    render(data, { rescored: true });
+    cv.lastScore = data.score;
+    cv.lastText = cv.text;
+    const d = data.score - cv.firstScore;
+    showNote((added.length ? `Added ${added.join(', ')}. ` : '') + `Score: ${cv.firstScore} → ${data.score}` + (d ? ` (${d > 0 ? '+' : ''}${d} vs. your uploaded CV)` : ' (no change)'));
+    $('results').scrollIntoView({ behavior: 'smooth' });
+  } catch (ex) {
+    edError(ex.message);
+  } finally {
+    btn.disabled = false; updateAddButton();
+  }
+});
+
+$('download').addEventListener('click', async () => {
+  edError('');
+  const added = applyTicked(); // ticked skills are included in the download too
+  const btn = $('download');
+  btn.disabled = true;
+  try {
+    const res = await fetch('/api/export-docx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: cv.text, template: $('template').value }) });
+    if (res.status === 401) { location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error((await res.json()).error || 'Could not create the document.');
+    const url = URL.createObjectURL(await res.blob());
+    const link = document.createElement('a');
+    link.href = url; link.download = 'updated-resume.docx';
+    document.body.appendChild(link); link.click(); link.remove();
+    URL.revokeObjectURL(url);
+    if (added.length) showNote(`Added ${added.join(', ')} to the downloaded CV. Click "Add selected skills & re-score" to see the updated score.`);
+  } catch (ex) {
+    edError(ex.message);
   } finally {
     btn.disabled = false;
   }
