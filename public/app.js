@@ -126,7 +126,7 @@ function render(r, { rescored = false } = {}) {
   const e = r.experience, ed = r.education;
   li($('facts'), [
     ['', `Required experience: ${e.requiredYears != null ? e.requiredYears + '+ years' : 'not specified'}`],
-    ['', `Experience on resume: ~${e.resumeYears} years${e.computedFromDates ? ` (${e.computedFromDates} from dates)` : ''}`],
+    ['', e.resumeYears != null ? `Experience on resume: ~${e.resumeYears} years${e.computedFromDates ? ` (${e.computedFromDates} from dates)` : ''}` : 'Experience on resume: not detected (work dates not readable)'],
     ['', `Education required: ${ed.required || 'not specified'}`],
     ['', `Education found: ${ed.found || 'not detected'}`],
     ...(r.title ? [['', `Job title coverage: ${Math.round(r.title.ratio * 100)}%`]] : []),
