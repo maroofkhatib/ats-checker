@@ -119,6 +119,10 @@ docker run -d -p 7860:7860 -v ats-data:/app/data ats-checker
 
 On hosts without persistent disk (Render free, Hugging Face Spaces) accounts are lost on redeploy/restart.
 
+## Fields covered
+
+The skill dictionary (`lib/skills.js`, ~235 skills) and the "implies" graph (`lib/implications.js`) cover **software, data/ML, cloud/DevOps, finance and operations**. For example: DCF valuation implies Financial Modeling and Financial Analysis; month-end close and reconciliations imply Accounting; SAP implies ERP; warehouse management implies Logistics and Supply Chain; Lean Six Sigma implies Process Improvement. Other fields (healthcare, marketing, law, ...) still get keyword matching, plus the AI step for skills it can read from the job description. To add a field: add skills to `lib/skills.js`, links to `lib/implications.js`, and labelled cases to `tests/cases.js`, then run `npm run eval`.
+
 ## AI skill inference (optional)
 
 Skills are matched by keywords, then by a skill graph that infers implied skills (e.g. LSTM and autoencoders imply Deep Learning). If `ANTHROPIC_API_KEY` is set (put it in a git-ignored `.env`), Claude Haiku 4.5 is also asked about job skills that are still unmatched, and must quote evidence from the resume. If the API is unavailable the app falls back to the graph.
