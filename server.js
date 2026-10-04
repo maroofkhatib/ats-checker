@@ -10,6 +10,7 @@ const llm = require('./lib/llm');
 const schemas = require('./lib/schemas');
 const { buildDocx } = require('./lib/cv');
 const { extractPdfText } = require('./lib/pdftext');
+const { addSkillsToDocx } = require('./lib/docxedit');
 const { rateLimit } = require('./lib/ratelimit');
 const { validate } = schemas;
 
@@ -211,6 +212,45 @@ app.post('/api/export-docx', requireAuth, rateLimit(40), validate(schemas.export
       'Content-Disposition': 'attachment; filename="updated-resume.docx"',
     });
     res.send(buf);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not create the document.' });
+  }
+});
+
+// For Word uploads: return the user's OWN file with only the new skills added (design, images, fonts untouched).
+// If a safe place can't be found (or the upload isn't a .docx), fall back to the restyled document built from the text.
+app.post('/api/export-original', requireAuth, rateLimit(40), upload.single('resume'), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ error: 'Please upload your resume again to download it.' });
+    let skills = [];
+    try { skills = JSON.parse(req.body.skills || '[]'); } catch { /* ignore */ }
+    skills = (Array.isArray(skills) ? skills : []).filter((x) => typeof x === 'string' && x.length > 0 && x.length < 60).slice(0, 80);
+    const template = ['modern', 'classic', 'minimal'].includes(req.body.template) ? req.body.template : 'modern';
+    const text = String(req.body.text || '').slice(0, 100000);
+    const base = (file.originalname || 'resume').replace(/\.[^.]+$/, '').replace(/[^\w .()-]+/g, '').trim() || 'resume';
+
+    let mode = 'restyled', out = null, placed = [];
+    if (/\.docx$/i.test(file.originalname || '')) {
+      try {
+        const r = await addSkillsToDocx(file.buffer, skills);
+        out = r.buffer; placed = r.placed; mode = 'original';
+      } catch (e) {
+        console.error('in-place DOCX edit failed, using the restyled version:', e.message);
+      }
+    }
+    if (!out) {
+      if (text.length < 10) return res.status(400).json({ error: 'Nothing to export.' });
+      out = await buildDocx(text, template);
+    }
+    res.set({
+      'X-Export-Mode': mode,
+      'X-Placed': encodeURIComponent(JSON.stringify(placed)),
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    res.attachment(base + (mode === 'original' ? '-updated.docx' : '-restyled.docx'));
+    res.send(out);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Could not create the document.' });

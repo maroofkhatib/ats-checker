@@ -40,7 +40,7 @@ function li(el, rows) {
   }
 }
 
-let cv = { jd: '', text: '', firstScore: null, lastScore: null, lastText: '' };
+let cv = { jd: '', text: '', added: [], firstScore: null, lastScore: null, lastText: '' };
 
 function updateAddButton() {
   const all = document.querySelectorAll('#picks input');
@@ -76,7 +76,10 @@ function renderPicks(missing) {
 function render(r, { rescored = false } = {}) {
   $('results').hidden = false;
   if (!rescored) {
-    cv = { jd: r.jdText, text: r.resumeText, firstScore: r.score, lastScore: r.score, lastText: r.resumeText };
+    cv = { jd: r.jdText, text: r.resumeText, added: [], firstScore: r.score, lastScore: r.score, lastText: r.resumeText };
+    const isDocx = !!resumeFile && /\.docx$/i.test(resumeFile.name);
+    $('downloadOriginal').hidden = !isDocx;
+    $('docxHint').hidden = isDocx;
     $('delta').hidden = true;
     $('edError').hidden = true;
   }
@@ -197,6 +200,7 @@ function applyTicked() {
   const chosen = [...document.querySelectorAll('#picks input:checked')].map((c) => c.value);
   if (chosen.length) {
     cv.text = CvEdit.addSkills(cv.text, chosen);
+    for (const c of chosen) if (!cv.added.includes(c)) cv.added.push(c);
     document.querySelectorAll('#picks input:checked').forEach((c) => (c.checked = false));
     updateAddButton();
   }
@@ -244,6 +248,47 @@ $('download').addEventListener('click', async () => {
     document.body.appendChild(link); link.click(); link.remove();
     URL.revokeObjectURL(url);
     if (added.length) showNote(`Added ${added.join(', ')} to the downloaded CV. Click "Add selected skills & re-score" to see the updated score.`);
+  } catch (ex) {
+    edError(ex.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Word upload: download the user's own file with only the new skills added (the server edits just the Skills text).
+$('downloadOriginal').addEventListener('click', async () => {
+  edError('');
+  applyTicked(); // ticked skills are included too
+  if (!cv.added.length) return edError('Tick the missing skills you have first, then download.');
+  const btn = $('downloadOriginal');
+  btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('resume', resumeFile);
+    fd.append('skills', JSON.stringify(cv.added));
+    fd.append('text', cv.text);
+    fd.append('template', $('template').value);
+    const res = await fetch('/api/export-original', { method: 'POST', body: fd });
+    if (res.status === 401) { location.href = '/login.html'; return; }
+    if (!res.ok) throw new Error((await res.json()).error || 'Could not create the document.');
+    const mode = res.headers.get('X-Export-Mode');
+    let placed = [];
+    try { placed = JSON.parse(decodeURIComponent(res.headers.get('X-Placed') || '[]')); } catch { /* ignore */ }
+    const cd = res.headers.get('Content-Disposition') || '';
+    const name = (cd.match(/filename="?([^";]+)"?/) || [])[1] || 'updated-resume.docx';
+    const url = URL.createObjectURL(await res.blob());
+    const link = document.createElement('a');
+    link.href = url; link.download = decodeURIComponent(name);
+    document.body.appendChild(link); link.click(); link.remove();
+    URL.revokeObjectURL(url);
+    if (mode === 'original') {
+      const where = [...new Set(placed.map((x) => x.section))];
+      showNote(placed.length
+        ? 'Downloaded your original CV with ' + placed.map((x) => x.skill).join(', ') + ' added (in "' + where.join('", "') + '"). Nothing else was changed.'
+        : 'Downloaded your original CV. Those skills were already listed, so nothing needed to change.');
+    } else {
+      showNote("Couldn't find a safe place in your Word file to add the skills, so this is the restyled version instead.");
+    }
   } catch (ex) {
     edError(ex.message);
   } finally {

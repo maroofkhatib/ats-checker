@@ -59,6 +59,12 @@ The YAML block at the top of this file and the `Dockerfile` (port 7860) are what
 ## Add missing skills to your CV
 
 After a check, the "Add missing skills to your CV" card lists the skills the job wants that your resume lacks. Tick only the ones you genuinely have (or use **Select all**), then click **Add selected skills & re-score**: they are added to your resume's Skills section (or a new one) and the new score is shown next to the original. **Download updated CV (DOCX)** exports the same updated resume. Nothing is added unless the user ticks it. There is no editable text box; the resume text is kept in memory on the page. `npm test` covers the insertion logic and the export.
+### Keeping your own Word design
+
+If the uploaded resume is a **.docx**, **Download my original CV with the new skills** returns the user's own file with only the new skills added. A .docx is a zip of XML parts; the server (`lib/docxedit.js`) finds the Skills section, appends the skills to the matching sub-group (e.g. tools vs. team skills) using the list's own separator (`,`, `•`, ...) and the formatting of the text it extends, or adds new bullets / a new Skills section styled like the existing headings. Every other part of the file (photo, fonts, styles, tables, text boxes, headers) is carried over byte-for-byte; tests check this. The file is processed in memory and not stored.
+
+If no safe place can be found, or the upload is a PDF (which has no editable structure), the site falls back to the restyled document below and says so.
+
 ### Resume export
 
 **Download as DOCX** rebuilds the resume as a polished, single-column, ATS-friendly Word document in one of three styles (Modern, Classic, Minimal). The text is first parsed into name, contact line, summary, jobs/education with right-aligned dates, bullets, and labelled skills, then rendered with real Word styling. The original PDF/Word file's own layout is not preserved. Parsing is heuristic, so unusual layouts may be arranged differently.
