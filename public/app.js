@@ -34,8 +34,14 @@ function li(el, rows) {
   el.innerHTML = '';
   for (const [icon, text, cls] of rows) {
     const l = document.createElement('li');
-    if (cls) l.className = cls;
-    l.textContent = (icon ? icon + ' ' : '') + text;
+    const kind = icon === '✅' ? 'pass' : icon === '⚠️' ? 'warn' : ''; // drawn with CSS icons
+    if (cls || kind) l.className = cls || kind;
+    const kv = !kind && text.match(/^([^:]{2,40}):\s+(.+)$/); // "Label: value" rows get a two-column look
+    if (kv) {
+      const k = document.createElement('span'); k.className = 'k'; k.textContent = kv[1];
+      const v = document.createElement('span'); v.className = 'v'; v.textContent = kv[2];
+      l.append(k, v);
+    } else l.textContent = text;
     el.appendChild(l);
   }
 }
@@ -86,6 +92,8 @@ function render(r, { rescored = false } = {}) {
   renderPicks(r.skills.missing);
   $('scoreNum').textContent = r.score;
   $('grade').textContent = r.grade;
+  $('gradeWrap').style.setProperty('--pill', colorFor(r.score));
+  $('ring').style.setProperty('--ringc', colorFor(r.score));
   const note = $('aiNote');
   const msgs = {
     limit: "You've reached today's AI limit, so skills that still needed a fresh AI check were scored by keyword and skill-graph matching only. AI credit already earned for your resume is kept.",

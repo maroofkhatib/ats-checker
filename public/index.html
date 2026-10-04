@@ -3,43 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#6366f1">
 <title>ATS Resume Checker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M10 9h8l4 4v10H10z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M13 18l2.2 2.2L19.5 16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
   <div class="userbar" id="userbar" hidden><span id="userEmail"></span><button id="logout" type="button" class="ghost">Sign out</button><button id="delete" type="button" class="ghost danger">Delete account</button></div>
-  <h1>ATS Resume Checker</h1>
-  <p>Upload your resume and a job description to see how well they match.</p>
+  <div class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h9l5 5v15H9z"/><path d="M18 6v5h5"/><path d="M12.5 19l2.6 2.6L20 16.5"/></svg>
+    </span>
+    <h1>ATS Resume Checker</h1>
+  </div>
+  <p class="tagline">See how well your resume matches a job description, and close the gaps before you apply.</p>
+  <ol class="steps" aria-label="How it works">
+    <li><span>1</span> Upload resume</li>
+    <li><span>2</span> Add the job</li>
+    <li><span>3</span> Improve &amp; save</li>
+  </ol>
 </header>
 
 <main>
-  <form id="form" class="card">
+  <form id="form" class="card form-card">
     <div class="grid">
       <section>
-        <h2>1. Resume</h2>
+        <h2><span class="num">1</span> Your resume</h2>
         <label id="drop" class="drop" for="resume">
           <input type="file" id="resume" accept=".pdf,.docx,.txt" hidden>
+          <span class="ic ic-up" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M5 16v3a1 1 0 001 1h12a1 1 0 001-1v-3"/></svg></span>
+          <span class="ic ic-ok" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
           <strong id="fileName">Drop your resume here or click to browse</strong>
-          <span>PDF or DOCX, up to 8 MB</span>
+          <span class="hint">PDF or Word (.docx), up to 8&nbsp;MB</span>
         </label>
       </section>
       <section>
-        <h2>2. Job description</h2>
+        <h2><span class="num">2</span> The job description</h2>
         <textarea id="jd" placeholder="Paste the full job description here…"></textarea>
-        <div class="alt">or <label class="link" for="jdFile">upload as file</label> <span id="jdFileName"></span>
+        <div class="alt">or <label class="link" for="jdFile">upload it as a file</label> <span id="jdFileName"></span>
           <input type="file" id="jdFile" accept=".pdf,.docx,.txt" hidden></div>
       </section>
     </div>
-    <button id="go" type="submit">Analyze match</button>
+    <button id="go" type="submit" class="primary">Analyze match</button>
     <p id="error" class="error" role="alert" hidden></p>
   </form>
 
   <div id="results" hidden>
     <section class="card hero">
-      <div class="ring" id="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" id="arc"/></svg><div><b id="scoreNum">0</b><small>/ 100</small></div></div>
-      <div>
-        <h2 id="grade"></h2>
+      <div class="ring" id="ring"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="52" class="bg"/><circle cx="60" cy="60" r="52" class="fg" id="arc"/></svg><div><b id="scoreNum">0</b><small>out of 100</small></div></div>
+      <div class="hero-body">
+        <span id="gradeWrap" class="grade-pill"><span class="dot"></span><span id="grade"></span></span>
         <p id="summary" class="muted"></p>
         <p id="aiNote" class="warn" role="status" hidden></p>
         <div id="bars" class="bars"></div>
@@ -47,34 +61,34 @@
     </section>
 
     <div class="grid">
-      <section class="card"><h3>Matched skills <span class="count" id="mCount"></span></h3><div id="matched" class="chips"></div></section>
-      <section class="card"><h3>Missing skills <span class="count" id="xCount"></span></h3><div id="missing" class="chips"></div></section>
+      <section class="card"><h3><span class="hic ok"></span>Matched skills <span class="count" id="mCount"></span></h3><div id="matched" class="chips"></div></section>
+      <section class="card"><h3><span class="hic no"></span>Missing skills <span class="count" id="xCount"></span></h3><div id="missing" class="chips"></div></section>
     </div>
     <div class="grid">
-      <section class="card"><h3>Experience &amp; education</h3><ul id="facts" class="plain"></ul></section>
-      <section class="card"><h3>ATS format checks</h3><ul id="checks" class="plain"></ul></section>
+      <section class="card"><h3><span class="hic info"></span>Experience &amp; education</h3><ul id="facts" class="plain facts"></ul></section>
+      <section class="card"><h3><span class="hic info"></span>ATS format checks</h3><ul id="checks" class="plain"></ul></section>
     </div>
-    <section class="card"><h3>How to improve</h3><ul id="tips" class="tips"></ul></section>
+    <section class="card"><h3><span class="hic info"></span>How to improve</h3><ul id="tips" class="tips"></ul></section>
 
-    <section class="card" id="editor">
-      <h3>Add missing skills to your CV</h3>
+    <section class="card editor" id="editor">
+      <h3><span class="hic spark"></span>Add missing skills to your CV</h3>
       <p class="muted">Tick only the skills you genuinely have. Claiming skills you don't have can cost you the interview &mdash; or the job.</p>
       <label class="pick all" id="pickAllRow"><input type="checkbox" id="pickAll"><span><strong>Select all</strong> <span class="muted-inline">(only if you really have them)</span></span></label>
       <div id="picks" class="picks"></div>
       <div class="actions">
-        <button id="rescore" type="button">Add selected skills &amp; re-score</button>
+        <button id="rescore" type="button" class="primary">Add selected skills &amp; re-score</button>
       </div>
       <div class="actions">
-        <button id="downloadOriginal" type="button" hidden>Save my original CV with the new skills (DOCX)</button>
+        <button id="downloadOriginal" type="button" class="accent2" hidden>Save my original CV with the new skills (DOCX)</button>
       </div>
-      <p id="docxHint" class="muted" hidden>Tip: upload your Word (.docx) version to download your CV with its original design, photo and layout, and only the new skills added.</p>
-      <div class="actions">
+      <p id="docxHint" class="muted tip-hint" hidden>Tip: upload your Word (.docx) version to download your CV with its original design, photo and layout, and only the new skills added.</p>
+      <div class="actions two">
         <select id="template" aria-label="Restyled resume style">
           <option value="modern">Modern style</option>
           <option value="classic">Classic style</option>
           <option value="minimal">Minimal style</option>
         </select>
-        <button id="download" type="button" class="ghost">Save restyled CV (DOCX)</button>
+        <button id="download" type="button" class="ghost wide">Save restyled CV (DOCX)</button>
       </div>
       <p id="delta" class="notice" role="status" hidden></p>
       <p id="edError" class="error" role="alert" hidden></p>
