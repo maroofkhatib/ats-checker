@@ -233,21 +233,60 @@ $('rescore').addEventListener('click', async () => {
   }
 });
 
+// --- Saving the CV: ask the user where to put it ---
+// Chrome/Edge: the system "Save as" dialog (File System Access API) so the user picks the folder and file name.
+// Other browsers: a normal download. The dialog must open straight after the click (before the file is built),
+// otherwise the browser refuses it, so we open it first and fill the file afterwards.
+const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const baseName = () => (resumeFile ? resumeFile.name.replace(/\.[^.]+$/, '') : 'resume').replace(/[\\/:*?"<>|]+/g, '').trim() || 'resume';
+
+// build() runs after the dialog and returns { blob, ...anything }. Resolves to { cancelled } or { saved, name, via, ...build result }.
+async function saveWithDialog(suggestedName, build) {
+  let handle = null;
+  if (window.showSaveFilePicker) {
+    try {
+      handle = await window.showSaveFilePicker({ suggestedName, startIn: 'documents', types: [{ description: 'Word document', accept: { [DOCX_TYPE]: ['.docx'] } }] });
+    } catch (e) {
+      if (e && e.name === 'AbortError') return { cancelled: true }; // user closed the dialog
+      handle = null; // dialog unavailable here (e.g. blocked): use a normal download instead
+    }
+  }
+  let built;
+  try {
+    built = await build();
+    if (handle) {
+      const w = await handle.createWritable();
+      await w.write(built.blob);
+      await w.close();
+      return { ...built, saved: true, name: handle.name, via: 'dialog' };
+    }
+  } catch (e) {
+    if (handle && handle.remove) { try { await handle.remove(); } catch { /* leave no empty file behind if we can */ } }
+    throw e;
+  }
+  const url = URL.createObjectURL(built.blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = suggestedName;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+  return { ...built, saved: true, name: suggestedName, via: 'download' };
+}
+const whereSaved = (r) => (r.via === 'dialog' ? 'Saved as "' + r.name + '".' : 'Downloaded as "' + r.name + '" (your browser saves it to its download folder).');
+
 $('download').addEventListener('click', async () => {
   edError('');
-  const added = applyTicked(); // ticked skills are included in the download too
+  const added = applyTicked(); // ticked skills are included in the file too
   const btn = $('download');
   btn.disabled = true;
   try {
-    const res = await fetch('/api/export-docx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: cv.text, template: $('template').value }) });
-    if (res.status === 401) { location.href = '/login.html'; return; }
-    if (!res.ok) throw new Error((await res.json()).error || 'Could not create the document.');
-    const url = URL.createObjectURL(await res.blob());
-    const link = document.createElement('a');
-    link.href = url; link.download = 'updated-resume.docx';
-    document.body.appendChild(link); link.click(); link.remove();
-    URL.revokeObjectURL(url);
-    if (added.length) showNote(`Added ${added.join(', ')} to the downloaded CV. Click "Add selected skills & re-score" to see the updated score.`);
+    const r = await saveWithDialog(baseName() + '-restyled.docx', async () => {
+      const res = await fetch('/api/export-docx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: cv.text, template: $('template').value }) });
+      if (res.status === 401) { location.href = '/login.html'; throw new Error('Please sign in.'); }
+      if (!res.ok) throw new Error((await res.json()).error || 'Could not create the document.');
+      return { blob: await res.blob() };
+    });
+    if (r.cancelled) return showNote('Save cancelled.');
+    showNote(whereSaved(r) + (added.length ? ' It includes ' + added.join(', ') + '. Click "Add selected skills & re-score" to see the updated score.' : ''));
   } catch (ex) {
     edError(ex.message);
   } finally {
@@ -255,39 +294,35 @@ $('download').addEventListener('click', async () => {
   }
 });
 
-// Word upload: download the user's own file with only the new skills added (the server edits just the Skills text).
+// Word upload: the user's own file with only the new skills added (the server edits just the Skills text).
 $('downloadOriginal').addEventListener('click', async () => {
   edError('');
   applyTicked(); // ticked skills are included too
-  if (!cv.added.length) return edError('Tick the missing skills you have first, then download.');
+  if (!cv.added.length) return edError('Tick the missing skills you have first, then save.');
   const btn = $('downloadOriginal');
   btn.disabled = true;
   try {
-    const fd = new FormData();
-    fd.append('resume', resumeFile);
-    fd.append('skills', JSON.stringify(cv.added));
-    fd.append('text', cv.text);
-    fd.append('template', $('template').value);
-    const res = await fetch('/api/export-original', { method: 'POST', body: fd });
-    if (res.status === 401) { location.href = '/login.html'; return; }
-    if (!res.ok) throw new Error((await res.json()).error || 'Could not create the document.');
-    const mode = res.headers.get('X-Export-Mode');
-    let placed = [];
-    try { placed = JSON.parse(decodeURIComponent(res.headers.get('X-Placed') || '[]')); } catch { /* ignore */ }
-    const cd = res.headers.get('Content-Disposition') || '';
-    const name = (cd.match(/filename="?([^";]+)"?/) || [])[1] || 'updated-resume.docx';
-    const url = URL.createObjectURL(await res.blob());
-    const link = document.createElement('a');
-    link.href = url; link.download = decodeURIComponent(name);
-    document.body.appendChild(link); link.click(); link.remove();
-    URL.revokeObjectURL(url);
-    if (mode === 'original') {
-      const where = [...new Set(placed.map((x) => x.section))];
-      showNote(placed.length
-        ? 'Downloaded your original CV with ' + placed.map((x) => x.skill).join(', ') + ' added (in "' + where.join('", "') + '"). Nothing else was changed.'
-        : 'Downloaded your original CV. Those skills were already listed, so nothing needed to change.');
+    const r = await saveWithDialog(baseName() + '-updated.docx', async () => {
+      const fd = new FormData();
+      fd.append('resume', resumeFile);
+      fd.append('skills', JSON.stringify(cv.added));
+      fd.append('text', cv.text);
+      fd.append('template', $('template').value);
+      const res = await fetch('/api/export-original', { method: 'POST', body: fd });
+      if (res.status === 401) { location.href = '/login.html'; throw new Error('Please sign in.'); }
+      if (!res.ok) throw new Error((await res.json()).error || 'Could not create the document.');
+      let placed = [];
+      try { placed = JSON.parse(decodeURIComponent(res.headers.get('X-Placed') || '[]')); } catch { /* ignore */ }
+      return { blob: await res.blob(), mode: res.headers.get('X-Export-Mode'), placed };
+    });
+    if (r.cancelled) return showNote('Save cancelled.');
+    if (r.mode === 'original') {
+      const where = [...new Set(r.placed.map((x) => x.section))];
+      showNote(whereSaved(r) + (r.placed.length
+        ? ' Your original CV now has ' + r.placed.map((x) => x.skill).join(', ') + ' added (in "' + where.join('", "') + '"). Nothing else was changed.'
+        : ' Those skills were already listed, so nothing needed to change.'));
     } else {
-      showNote("Couldn't find a safe place in your Word file to add the skills, so this is the restyled version instead.");
+      showNote(whereSaved(r) + " Couldn't find a safe place in your Word file to add the skills, so this is the restyled version instead.");
     }
   } catch (ex) {
     edError(ex.message);
