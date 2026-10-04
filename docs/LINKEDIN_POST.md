@@ -17,7 +17,7 @@ A few things I enjoyed building:
 
 It's a match estimate, not a simulation of any particular ATS, and my accuracy numbers come from test cases I wrote myself, so treat them as a safety net rather than proof.
 
-Try it: [LIVE LINK]
+Try it: https://ats-checker-md7l.onrender.com
 Code: https://github.com/maroofkhatib/ats-checker
 
 What would make a tool like this actually useful to you?
@@ -34,7 +34,7 @@ Under the hood: a skill graph that understands implied skills (LSTM implies Deep
 
 It's an estimate, not a real ATS simulation.
 
-Live: [LIVE LINK]
+Live: https://ats-checker-md7l.onrender.com
 Code: https://github.com/maroofkhatib/ats-checker
 
 ## First comment (optional)

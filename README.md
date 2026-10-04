@@ -2,7 +2,7 @@
 
 Upload a resume (PDF or DOCX), paste a job description, and see how well they match: a score out of 100, the skills the job wants that your resume is missing, and one click to add the ones you genuinely have and re-score. If you upload a Word file, you get your own document back with your original design, photo and fonts untouched.
 
-**Live demo:** <https://YOUR-APP.onrender.com> (free hosting: the first load after a quiet period can take about 30 seconds)
+**Live demo:** <https://ats-checker-md7l.onrender.com> (free hosting: the first load after a quiet period can take about 30 seconds)
 
 <!-- Add docs/demo.gif here once recorded:  ![Demo](docs/demo.gif)  Script: docs/DEMO_SCRIPT.md -->
 
