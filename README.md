@@ -1,4 +1,4 @@
-# ATS Resume Checker
+![Demo](docs/demo.gif)
 
 Upload a resume (PDF or DOCX), paste a job description, and see how well they match: a score out of 100, the skills the job wants that your resume is missing, and one click to add the ones you genuinely have and re-score. If you upload a Word file, you get your own document back with your original design, photo and fonts untouched.
 
@@ -23,10 +23,10 @@ Upload a resume (PDF or DOCX), paste a job description, and see how well they ma
 - 52 automated tests (`npm test`): scoring, skill insertion, DOCX in-place editing, PDF reading order, date and experience parsing, and the optional login switch.
 - `npm run eval` compares keyword-only matching, the skill graph, and graph + Claude on 48 labelled cases. Results from the last run:
 
-  | Method | Precision | Recall |
-  |---|---|---|
-  | Skill graph | 100% | 93.9% |
-  | Graph + Claude Haiku 4.5 | 97.5% | 100% |
+  | Method                   | Precision | Recall |
+  | ------------------------ | --------- | ------ |
+  | Skill graph              | 100%      | 93.9%  |
+  | Graph + Claude Haiku 4.5 | 97.5%     | 100%   |
 
   **Caveat:** the cases were written by the author while building the graph, so this is a regression suite that guards against breakage, not independent proof of accuracy.
 
@@ -36,12 +36,12 @@ Files are processed in memory and never stored. With the AI step enabled, resume
 
 ## How the score works
 
-| Component | Weight | What it checks |
-|---|---|---|
-| Skills | 50% | ~190 known skills (with aliases) found in the job description vs. the resume. "Required" skills count fully, "nice to have" skills count half. |
-| Experience | 25% | Years required in the job description vs. years from your resume's date ranges (overlaps merged) or stated "X years of experience". |
-| Education | 10% | Degree level required vs. degree level found. |
-| ATS formatting | 15% | Contact info, section headings, length, quantified results, action verbs. |
+| Component      | Weight | What it checks                                                                                                                                 |
+| -------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Skills         | 50%    | ~190 known skills (with aliases) found in the job description vs. the resume. "Required" skills count fully, "nice to have" skills count half. |
+| Experience     | 25%    | Years required in the job description vs. years from your resume's date ranges (overlaps merged) or stated "X years of experience".            |
+| Education      | 10%    | Degree level required vs. degree level found.                                                                                                  |
+| ATS formatting | 15%    | Contact info, section headings, length, quantified results, action verbs.                                                                      |
 
 If the job description doesn't mention a component (e.g. no years required), it is left out and the others are re-weighted. The score is a heuristic estimate; real ATS systems vary.
 
@@ -72,6 +72,7 @@ Create a **Web Service** from this repo (Docker or Node). Set `NODE_ENV=producti
 ## Add missing skills to your CV
 
 After a check, the "Add missing skills to your CV" card lists the skills the job wants that your resume lacks. Tick only the ones you genuinely have (or use **Select all**), then click **Add selected skills & re-score**: they are added to your resume's Skills section (or a new one) and the new score is shown next to the original. **Download updated CV (DOCX)** exports the same updated resume. Nothing is added unless the user ticks it. There is no editable text box; the resume text is kept in memory on the page. `npm test` covers the insertion logic and the export.
+
 ### Choosing where to save
 
 In Chrome and Edge the save buttons open the system "Save as" window (File System Access API), so the user picks the folder and file name; the file is only built after a location is chosen, and closing the window cancels cleanly. This needs HTTPS or localhost, which Render and local development both provide. Firefox and Safari don't support it, so they get a normal download (those browsers have a setting to ask where to save every file).
