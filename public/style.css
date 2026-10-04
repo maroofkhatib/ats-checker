@@ -80,3 +80,4 @@ dialog .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
 .warn{color:var(--mid);font-size:.88rem;margin:0 0 12px}
 .pick.all{margin:0 0 8px}.muted-inline{color:var(--muted);font-size:.82rem}
 #addMsg{margin:-6px 0 14px;font-size:.9rem}
+[hidden]{display:none!important}

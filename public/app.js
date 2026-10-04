@@ -157,7 +157,11 @@ $('form').addEventListener('submit', async (e) => {
   }
 });
 
-fetch('/api/me').then((r) => (r.ok ? r.json() : Promise.reject())).then((u) => ($('userEmail').textContent = u.email)).catch(() => (location.href = '/login.html'));
+// Login is optional (server setting AUTH_ENABLED). The account bar is shown only when it is on.
+fetch('/api/me')
+  .then((r) => (r.ok ? r.json() : Promise.reject()))
+  .then((u) => { if (u.auth) { $('userEmail').textContent = u.email; $('userbar').hidden = false; } })
+  .catch(() => (location.href = '/login.html'));
 $('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); location.href = '/login.html'; });
 
 const dlg = $('delDialog');

@@ -4,16 +4,21 @@ const express = require('express');
 const helmet = require('helmet');
 const multer = require('multer');
 const path = require('path');
-const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const { analyze } = require('./lib/analyzer');
-const auth = require('./lib/auth');
-const mailer = require('./lib/mailer');
 const llm = require('./lib/llm');
 const schemas = require('./lib/schemas');
 const { buildDocx } = require('./lib/cv');
-const { cleanPdfText } = require('./lib/text');
+const { extractPdfText } = require('./lib/pdftext');
+const { rateLimit } = require('./lib/ratelimit');
 const { validate } = schemas;
+
+// Login is switched OFF by default: the main page opens directly. All the login code is kept; set AUTH_ENABLED=true
+// to turn accounts back on (sign-up, sign-in, password reset, delete account). The database and mailer are only
+// loaded when it is on.
+const AUTH_ENABLED = process.env.AUTH_ENABLED === 'true';
+const auth = AUTH_ENABLED ? require('./lib/auth') : null;
+const mailer = AUTH_ENABLED ? require('./lib/mailer') : null;
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -21,7 +26,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 *
 async function extractText(file) {
   const name = file.originalname.toLowerCase();
   if (name.endsWith('.pdf') || file.mimetype === 'application/pdf') {
-    return cleanPdfText((await pdfParse(file.buffer)).text);
+    return extractPdfText(file.buffer);
   }
   if (name.endsWith('.docx')) {
     return (await mammoth.extractRawText({ buffer: file.buffer })).value;
@@ -43,77 +48,87 @@ app.use(helmet({
 }));
 app.use(['/api/rescore', '/api/export-docx'], express.json({ limit: '400kb' }));
 app.use(express.json({ limit: '10kb' }));
-app.use(auth.attachUser);
 
-// --- Auth API ---
-app.post('/api/signup', auth.rateLimit(), validate(schemas.signup), async (req, res) => {
-  const { email, password } = req.data;
-  try {
-    await auth.createUser(email, password);
+// Without login every visitor is "guest:<ip>", which the per-user AI limit and AI cache key on.
+const attachUser = AUTH_ENABLED ? auth.attachUser : (req, _res, next) => { req.user = `guest:${req.ip}`; next(); };
+const requireAuth = AUTH_ENABLED ? auth.requireAuth : (_req, _res, next) => next();
+app.use(attachUser);
+
+if (AUTH_ENABLED) {
+  // --- Auth API ---
+  app.post('/api/signup', rateLimit(), validate(schemas.signup), async (req, res) => {
+    const { email, password } = req.data;
+    try {
+      await auth.createUser(email, password);
+      auth.setSession(req, res, email);
+      res.json({ email });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message });
+    }
+  });
+  app.post('/api/login', rateLimit(), validate(schemas.login, 'Incorrect email or password.'), async (req, res) => {
+    const { email, password } = req.data;
+    if (!(await auth.verifyUser(email, password))) return res.status(401).json({ error: 'Incorrect email or password.' });
     auth.setSession(req, res, email);
     res.json({ email });
-  } catch (e) {
-    res.status(e.status || 500).json({ error: e.message });
-  }
-});
-app.post('/api/login', auth.rateLimit(), validate(schemas.login, 'Incorrect email or password.'), async (req, res) => {
-  const { email, password } = req.data;
-  if (!(await auth.verifyUser(email, password))) return res.status(401).json({ error: 'Incorrect email or password.' });
-  auth.setSession(req, res, email);
-  res.json({ email });
-});
-app.post('/api/logout', (_req, res) => { auth.clearSession(res); res.json({ ok: true }); });
-app.post('/api/forgot', auth.rateLimit(5), validate(schemas.forgot), (req, res) => {
-  const { email } = req.data;
-  // Same response whether or not the account exists, sent before any work, so it can't be used to probe emails.
-  res.json({ message: 'If an account exists for that email, a password reset link has been sent.' });
-  const token = auth.createResetToken(email);
-  if (!token) return;
-  const base = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
-  const link = `${base.replace(/\/$/, '')}/reset.html?token=${token}`;
-  if (!mailer.configured()) {
-    console.log(`[mail not configured] Password reset link for ${email}: ${link}`);
-    return;
-  }
-  mailer.sendMail({
-    to: email,
-    subject: 'Reset your ATS Resume Checker password',
-    text: `Someone asked to reset the password for this account.
+  });
+  app.post('/api/logout', (_req, res) => { auth.clearSession(res); res.json({ ok: true }); });
+  app.post('/api/forgot', rateLimit(5), validate(schemas.forgot), (req, res) => {
+    const { email } = req.data;
+    // Same response whether or not the account exists, sent before any work, so it can't be used to probe emails.
+    res.json({ message: 'If an account exists for that email, a password reset link has been sent.' });
+    const token = auth.createResetToken(email);
+    if (!token) return;
+    const base = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const link = `${base.replace(/\/$/, '')}/reset.html?token=${token}`;
+    if (!mailer.configured()) {
+      console.log(`[mail not configured] Password reset link for ${email}: ${link}`);
+      return;
+    }
+    mailer.sendMail({
+      to: email,
+      subject: 'Reset your ATS Resume Checker password',
+      text: `Someone asked to reset the password for this account.
 
 Reset it here (valid for 1 hour):
 ${link}
 
 If this wasn't you, ignore this email and your password will stay the same.`,
-  }).catch((e) => console.error('Failed to send reset email:', e.message));
-});
-app.post('/api/reset', auth.rateLimit(10), validate(schemas.reset), async (req, res) => {
-  try {
-    await auth.resetPassword(req.data.token, req.data.password);
+    }).catch((e) => console.error('Failed to send reset email:', e.message));
+  });
+  app.post('/api/reset', rateLimit(10), validate(schemas.reset), async (req, res) => {
+    try {
+      await auth.resetPassword(req.data.token, req.data.password);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(e.status || 500).json({ error: e.message });
+    }
+  });
+  app.delete('/api/account', requireAuth, rateLimit(), validate(schemas.deleteAccount, 'Incorrect password.'), async (req, res) => {
+    if (!(await auth.verifyUser(req.user, req.data.password))) return res.status(403).json({ error: 'Incorrect password.' });
+    auth.deleteUser(req.user);
+    auth.clearSession(res);
     res.json({ ok: true });
-  } catch (e) {
-    res.status(e.status || 500).json({ error: e.message });
-  }
-});
-app.delete('/api/account', auth.requireAuth, auth.rateLimit(), validate(schemas.deleteAccount, 'Incorrect password.'), async (req, res) => {
-  if (!(await auth.verifyUser(req.user, req.data.password))) return res.status(403).json({ error: 'Incorrect password.' });
-  auth.deleteUser(req.user);
-  auth.clearSession(res);
-  res.json({ ok: true });
-});
-app.get('/api/me', auth.requireAuth, (req, res) => res.json({ email: req.user }));
+  });
+  app.get('/api/me', requireAuth, (req, res) => res.json({ auth: true, email: req.user }));
 
-// --- Page gate: the checker UI requires a session; the login page does not ---
-app.get(['/', '/index.html'], (req, res, next) => (req.user ? next() : res.redirect('/login.html')));
-app.get('/app.js', (req, res, next) => (req.user ? next() : res.status(401).end()));
-app.get('/login.html', (req, res, next) => (req.user ? res.redirect('/') : next()));
+  // --- Page gate: the checker UI requires a session; the login page does not ---
+  app.get(['/', '/index.html'], (req, res, next) => (req.user ? next() : res.redirect('/login.html')));
+  app.get('/app.js', (req, res, next) => (req.user ? next() : res.status(401).end()));
+  app.get('/login.html', (req, res, next) => (req.user ? res.redirect('/') : next()));
+} else {
+  // Login is off: tell the page so it hides the account controls, and send old login links to the main page.
+  app.get('/api/me', (_req, res) => res.json({ auth: false }));
+  app.get(['/login.html', '/reset.html'], (_req, res) => res.redirect('/'));
+}
 app.use(express.static(path.join(__dirname, 'public')));
 
 const AI_DAILY_LIMIT = +process.env.AI_DAILY_LIMIT || 40;
-const aiUse = new Map(); // email -> { day, n }  (in memory: resets on restart)
-function takeAiQuota(email) {
+const aiUse = new Map(); // user (email, or guest:<ip> when login is off) -> { day, n }   (in memory: resets on restart)
+function takeAiQuota(user) {
   const day = new Date().toISOString().slice(0, 10);
-  const rec = aiUse.get(email);
-  if (!rec || rec.day !== day) { aiUse.set(email, { day, n: 1 }); return true; }
+  const rec = aiUse.get(user);
+  if (!rec || rec.day !== day) { aiUse.set(user, { day, n: 1 }); return true; }
   return ++rec.n <= AI_DAILY_LIMIT;
 }
 
@@ -160,7 +175,7 @@ async function runAnalysis(resume, jd, user) {
   return result;
 }
 
-app.post('/api/analyze', auth.requireAuth, upload.fields([{ name: 'resume', maxCount: 1 }, { name: 'jdFile', maxCount: 1 }]), async (req, res) => {
+app.post('/api/analyze', requireAuth, rateLimit(60), upload.fields([{ name: 'resume', maxCount: 1 }, { name: 'jdFile', maxCount: 1 }]), async (req, res) => {
   try {
     const resumeFile = req.files?.resume?.[0];
     if (!resumeFile) return res.status(400).json({ error: 'Please upload a resume (PDF or DOCX).' });
@@ -180,7 +195,7 @@ app.post('/api/analyze', auth.requireAuth, upload.fields([{ name: 'resume', maxC
   }
 });
 
-app.post('/api/rescore', auth.requireAuth, auth.rateLimit(40), validate(schemas.rescore), async (req, res) => {
+app.post('/api/rescore', requireAuth, rateLimit(40), validate(schemas.rescore), async (req, res) => {
   try {
     res.json(await runAnalysis(req.data.resume.trim(), req.data.jd.trim(), req.user));
   } catch (e) {
@@ -188,7 +203,7 @@ app.post('/api/rescore', auth.requireAuth, auth.rateLimit(40), validate(schemas.
     res.status(500).json({ error: 'Could not score the updated resume.' });
   }
 });
-app.post('/api/export-docx', auth.requireAuth, auth.rateLimit(40), validate(schemas.exportDocx), async (req, res) => {
+app.post('/api/export-docx', requireAuth, rateLimit(40), validate(schemas.exportDocx), async (req, res) => {
   try {
     const buf = await buildDocx(req.data.text, req.data.template);
     res.set({
@@ -211,4 +226,4 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`ATS Checker running at http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`ATS Checker running at http://localhost:${PORT} (login ${AUTH_ENABLED ? 'ON' : 'off'})`));

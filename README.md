@@ -63,7 +63,17 @@ After a check, the "Add missing skills to your CV" card lists the skills the job
 
 **Download as DOCX** rebuilds the resume as a polished, single-column, ATS-friendly Word document in one of three styles (Modern, Classic, Minimal). The text is first parsed into name, contact line, summary, jobs/education with right-aligned dates, bullets, and labelled skills, then rendered with real Word styling. The original PDF/Word file's own layout is not preserved. Parsing is heuristic, so unusual layouts may be arranged differently.
 
-## Accounts & login
+## Login is currently switched off
+
+By default the site has **no login**: it opens straight to the checker and anyone can use it. All the account code is still in the repo and is switched on with one setting:
+
+```bash
+AUTH_ENABLED=true npm start     # or set AUTH_ENABLED=true in .env / your host's environment
+```
+
+With it off, the database and email modules are never loaded (no `data/` folder is created), `/login.html` redirects to the main page, and the account endpoints do not exist. Visitors are told apart by IP address, which the per-user AI limit and the rate limits use. **If you set `ANTHROPIC_API_KEY` while login is off, anyone who finds the site can trigger AI calls on your key** (limited by `AI_DAILY_LIMIT` per IP and the rate limiter); keep that in mind before making the site public.
+
+## Accounts & login (only when `AUTH_ENABLED=true`)
 
 Users sign up / sign in on `/login.html`; the checker and `/api/analyze` require a session.
 
