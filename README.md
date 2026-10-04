@@ -1,16 +1,38 @@
----
-title: ATS Resume Checker
-emoji: 📄
-colorFrom: indigo
-colorTo: blue
-sdk: docker
-app_port: 7860
-pinned: false
----
-
 # ATS Resume Checker
 
-Upload a resume (PDF or DOCX) and paste a job description to get an ATS match score based on skills, experience, education and resume formatting.
+Upload a resume (PDF or DOCX), paste a job description, and see how well they match: a score out of 100, the skills the job wants that your resume is missing, and one click to add the ones you genuinely have and re-score. If you upload a Word file, you get your own document back with your original design, photo and fonts untouched.
+
+**Live demo:** <https://YOUR-APP.onrender.com> (free hosting: the first load after a quiet period can take about 30 seconds)
+
+<!-- Add docs/demo.gif here once recorded:  ![Demo](docs/demo.gif)  Script: docs/DEMO_SCRIPT.md -->
+
+> The score is a resume-to-job-description match estimate, not a simulation of any specific ATS. Real systems (Workday, Greenhouse, Lever, ...) keep their rules private and differ from each other.
+
+## What it does
+
+- **Match score** from skills (50%), experience (25%), education (10%) and ATS-friendly formatting (15%), with a breakdown and prioritised suggestions.
+- **Understands implied skills.** A resume that mentions LSTMs and autoencoders is credited for Deep Learning; DCF valuation implies Financial Modeling; month-end close implies Accounting. This uses a hand-built skill graph, plus an optional Claude Haiku 4.5 step for what the graph can't resolve (it must quote evidence from the resume, and the quote is verified).
+- **Adds missing skills for you.** Tick the skills you really have, re-score, and compare before and after. Nothing is added unless you tick it.
+- **Keeps your CV's design.** For an uploaded `.docx` only the Skills text is edited inside the file's XML; every other part (images, fonts, tables, headers) is carried over byte for byte, and tests check that.
+- **Reads real-world files.** PDFs are read by position rather than by file order, so multi-column layouts and right-aligned dates come out in the right order. Dates written with any dash, month format, or "Present / Till date" are understood.
+- **Choose where to save** with the system "Save as" window (Chrome/Edge).
+- Fields covered: software, data/ML, cloud/DevOps, finance and operations (~235 skills).
+
+## Quality and testing
+
+- 52 automated tests (`npm test`): scoring, skill insertion, DOCX in-place editing, PDF reading order, date and experience parsing, and the optional login switch.
+- `npm run eval` compares keyword-only matching, the skill graph, and graph + Claude on 48 labelled cases. Results from the last run:
+
+  | Method | Precision | Recall |
+  |---|---|---|
+  | Skill graph | 100% | 93.9% |
+  | Graph + Claude Haiku 4.5 | 97.5% | 100% |
+
+  **Caveat:** the cases were written by the author while building the graph, so this is a regression suite that guards against breakage, not independent proof of accuracy.
+
+## Privacy
+
+Files are processed in memory and never stored. With the AI step enabled, resume text is sent to the Anthropic API for the skills the graph couldn't resolve; with `LLM_ENABLED=false` (or no API key) nothing leaves the server.
 
 ## How the score works
 
@@ -43,18 +65,9 @@ docker run -p 7860:7860 ats-checker
 
 Open http://localhost:7860.
 
-## Deploy free on Hugging Face Spaces
+## Deploy on Render (free tier)
 
-The YAML block at the top of this file and the `Dockerfile` (port 7860) are what Spaces needs.
-
-1. Create a Space at https://huggingface.co/new-space — choose **Docker** as the SDK and **Blank** template.
-2. Push this repo to it:
-   ```bash
-   git remote add space https://huggingface.co/spaces/<your-username>/ats-checker
-   git push space main
-   ```
-   (Use a Hugging Face access token with write permission as the password.)
-3. Spaces builds the image and serves the app at `https://<your-username>-ats-checker.hf.space`.
+Create a **Web Service** from this repo (Docker or Node). Set `NODE_ENV=production`. Optionally add `ANTHROPIC_API_KEY` and `AI_DAILY_LIMIT` for the AI step; see the warning under "Login is currently switched off" about public sites and API keys. The free tier sleeps when idle, so the first request after a quiet period is slow.
 
 ## Add missing skills to your CV
 
